@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS wardrobes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   userId INTEGER NOT NULL,
   title TEXT NOT NULL,
+  isFavorite INTEGER NOT NULL DEFAULT 0,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
@@ -127,6 +128,7 @@ CREATE TABLE IF NOT EXISTS plan_tasks (
   color TEXT NOT NULL DEFAULT '#CDB4DB',
   note TEXT NOT NULL DEFAULT '',
   isDone INTEGER NOT NULL DEFAULT 0,
+  isFavorite INTEGER NOT NULL DEFAULT 0,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
@@ -137,6 +139,7 @@ CREATE TABLE IF NOT EXISTS drawings (
   userId INTEGER NOT NULL,
   title TEXT NOT NULL,
   imageUrl TEXT NOT NULL,
+  isFavorite INTEGER NOT NULL DEFAULT 0,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
@@ -166,3 +169,6 @@ function ensureColumn(table, column, definition) {
 
 ensureColumn("wardrobes", "isDeleted", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("wardrobes", "deletedAt", "TEXT");
+ensureColumn("wardrobes", "isFavorite", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("plan_tasks", "isFavorite", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("drawings", "isFavorite", "INTEGER NOT NULL DEFAULT 0");

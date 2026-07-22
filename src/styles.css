@@ -103,16 +103,25 @@ h1, h2, h3, p { margin-top: 0; }
 .wardrobe-section textarea { min-height: 90px; }
 .wardrobe-section img { border-radius: 8px; border: 1px solid var(--line); }
 .upload-line { margin-top: 8px; min-height: 36px; border-radius: 8px; background: var(--blue); display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; cursor: pointer; font-weight: 800; }
-.plan-form { display: grid; grid-template-columns: 1fr 160px 160px 48px 48px; gap: 8px; margin-bottom: 18px; }
+.plan-form { display: grid; grid-template-columns: minmax(180px, 1fr) 150px 150px 48px 48px; gap: 8px; margin-bottom: 18px; align-items: center; }
+.plan-form input { min-width: 0; }
+.plan-form .color-picker { width: 48px; justify-self: center; }
 .gantt { overflow-x: auto; background: white; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-.gantt-row { min-width: 720px; display: grid; grid-template-columns: 150px 80px 60px 1fr; gap: 8px; align-items: center; margin-bottom: 10px; }
+.gantt-row { min-width: 760px; display: grid; grid-template-columns: 150px 40px 80px 60px 1fr; gap: 8px; align-items: center; margin-bottom: 10px; }
+.plan-star { position: static; width: 36px; height: 36px; min-height: 36px; }
 .gantt-row button { min-height: 32px; padding: 0 8px; }
 .gantt-row button.done { background: var(--yellow); }
 .bar { height: 32px; border-radius: 8px; padding: 6px 10px; white-space: nowrap; font-size: 13px; font-weight: 800; }
-.draw-canvas { width: 100%; height: min(58vh, 520px); background: white; border: 1px solid var(--line); border-radius: 8px; touch-action: none; }
+.draw-canvas { width: 100%; height: min(58vh, 520px); background: white; border: 1px solid var(--line); border-radius: 8px; touch-action: auto; }
 .drawing-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 14px; }
-.drawing-list article { background: white; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.drawing-list article { position: relative; background: white; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
 .drawing-list img { aspect-ratio: 1.2; object-fit: contain; background: white; }
+.wardrobe { position: relative; }
+.wardrobe-star { right: 12px; top: 9px; }
+.favorite-image { width: 100%; aspect-ratio: 1.2; object-fit: contain; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.favorites-filter { width: min(170px, 45vw); }
+.favorites-head h2 { white-space: nowrap; }
+.mobile-project-back { display: none; }
 
 @media (max-width: 860px) {
   .app-shell { display: block; padding-bottom: 72px; }
@@ -122,9 +131,16 @@ h1, h2, h3, p { margin-top: 0; }
   .bottom-nav button { border-radius: 0; background: white; min-height: 64px; flex-direction: column; gap: 2px; font-size: 12px; padding: 4px; }
   .bottom-nav button.active { background: var(--pink); }
   .tools-grid, .notes-layout { grid-template-columns: 1fr; }
+  .tools-grid { display: block; }
+  .tools-grid:not(.mobile-project-open) .content-pane { display: none; }
+  .tools-grid.mobile-project-open .project-list { display: none; }
+  .mobile-project-back { display: inline-flex; margin-bottom: 16px; }
   .project-list { display: block; }
   .project-pill { min-height: 62px; }
-  .plan-form { grid-template-columns: 1fr 1fr; }
+  .plan-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 10px; }
+  .plan-form input:first-child { grid-column: 1 / -1; }
+  .plan-form .color-picker { grid-column: 2; justify-self: end; }
+  .plan-form button { grid-column: 3; }
   .wardrobe-section { grid-template-columns: 1fr; }
   .new-row { flex-wrap: wrap; }
   .section-head h2 { font-size: 22px; }

@@ -174,12 +174,14 @@ function TabPanel({ active, children }) {
 
 function Tools({ projects, activeProject, setActiveProjectId, reload }) {
   const [recoveryVersion, setRecoveryVersion] = useState(0);
+  const [mobileProjectOpen, setMobileProjectOpen] = useState(false);
   const createProject = async () => {
     const name = prompt("项目文件夹名称");
     if (!name?.trim()) return;
     const project = await api("/api/projects", { method: "POST", body: { name, type: "custom" } });
     success();
     await reload(project.id);
+    setMobileProjectOpen(true);
   };
   const rename = async (project) => {
     const next = prompt("项目名称", project.name);
@@ -188,15 +190,19 @@ function Tools({ projects, activeProject, setActiveProjectId, reload }) {
   const remove = async (project) => {
     if (confirmDelete()) { await api(`/api/projects/${project.id}`, { method: "DELETE" }); success(); await reload(); }
   };
-  return <section className="tools-grid">
+  const openProject = (projectId) => {
+    setActiveProjectId(projectId);
+    setMobileProjectOpen(true);
+  };
+  return <section className={`tools-grid ${mobileProjectOpen ? "mobile-project-open" : ""}`}>
     <div className="project-list">
       <div className="section-head"><h2>工具栏</h2></div>
       <div className="new-folder-row"><span>新建项目文件夹</span><button type="button" title="新建项目文件夹" onClick={createProject}><Plus size={18} /></button></div>
-      {projects.map((p) => <button type="button" key={p.id} className={`project-pill ${activeProject?.id === p.id ? "active" : ""}`} onClick={() => setActiveProjectId(p.id)}>
+      {projects.map((p) => <button type="button" key={p.id} className={`project-pill ${activeProject?.id === p.id ? "active" : ""}`} onClick={() => openProject(p.id)}>
         <ProjectIcon type={p.type} /> <span>{p.name}</span>
       </button>)}
     </div>
-    <div className="content-pane">{activeProject ? <ProjectContentBoundary key={`${activeProject.id}-${recoveryVersion}`} onRetry={() => setRecoveryVersion((version) => version + 1)}><ProjectView project={activeProject} onRename={() => rename(activeProject)} onDelete={() => remove(activeProject)} /></ProjectContentBoundary> : <Empty text="请选择或新建项目" />}</div>
+    <div className="content-pane"><button type="button" className="mobile-project-back ghost" onClick={() => setMobileProjectOpen(false)}>← 返回工具栏</button>{activeProject ? <ProjectContentBoundary key={`${activeProject.id}-${recoveryVersion}`} onRetry={() => setRecoveryVersion((version) => version + 1)}><ProjectView project={activeProject} onRename={() => rename(activeProject)} onDelete={() => remove(activeProject)} /></ProjectContentBoundary> : <Empty text="请选择或新建项目" />}</div>
   </section>;
 }
 
@@ -387,12 +393,23 @@ function NoteEditor({ note, onSaved, onDeleted }) {
 function Favorites({ projects, openProject }) {
   const [notes, setNotes] = useState([]);
   const [filter, setFilter] = useState("");
-  const load = () => api("/api/notes?favorite=1").then(setNotes);
+  const load = () => api("/api/favorites").then(setNotes);
   useEffect(load, []);
-  const rows = filter ? notes.filter((n) => String(n.projectId) === filter) : notes;
-  return <section><div className="section-head"><h2>收藏夹</h2><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">全部项目</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+  const availableProjects = projects.filter((p) => p.type !== "recipe");
+  const rows = filter ? notes.filter((item) => String(item.projectId) === filter || projects.find((p) => String(p.id) === filter)?.type === item.projectType) : notes;
+  const unfavorite = async (item) => {
+    const endpoint = item.itemType === "note" ? `/api/notes/${item.id}/favorite` : `/api/${item.itemType === "wardrobe" ? "wardrobes" : `${item.itemType}s`}/${item.id}/favorite`;
+    await api(endpoint, { method: "PATCH" });
+    success();
+    load();
+  };
+  const openItem = (item) => {
+    const project = item.itemType === "note" ? projects.find((p) => p.id === item.projectId) : projects.find((p) => p.type === item.projectType);
+    if (project) openProject(project.id);
+  };
+  return <section><div className="section-head favorites-head"><h2>收藏夹</h2><select className="favorites-filter" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">全部项目</option>{availableProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
     {!rows.length && <Empty text={emptyText} />}
-    <div className="cards">{rows.map((n) => <article className="note-card" key={n.id}><button className="star" onClick={async () => { await api(`/api/notes/${n.id}/favorite`, { method: "PATCH" }); success(); load(); }}>★</button><h3>{n.title}</h3><p className="note-preview">{n.content}</p><small>{n.projectName} · 创建：{fmt(n.createdAt)}</small><button onClick={() => { if (projects.some((p) => p.id === n.projectId)) openProject(n.projectId); }}>进入原项目</button></article>)}</div>
+    <div className="cards">{rows.map((item) => <article className="note-card" key={`${item.itemType}-${item.id}`}><button className="star" onClick={() => unfavorite(item)}>★</button><h3>{item.title}</h3>{item.imageUrl ? <img className="favorite-image" src={item.imageUrl} alt={item.title} /> : <p className="note-preview">{item.content || "衣橱记录"}</p>}<small>{item.projectName || ({ wardrobe: "衣橱", plan: "规划", drawing: "画画" }[item.projectType])} · 更新：{fmt(item.updatedAt)}</small><button onClick={() => openItem(item)}>进入原项目</button></article>)}</div>
   </section>;
 }
 
@@ -489,7 +506,7 @@ function Wardrobe({ project, onRename, onDelete }) {
   };
   return <section><ProjectTitle title={project.name} onRename={onRename} onDelete={onDelete}><button title="新增穿搭" onClick={create}><Plus size={18} /></button></ProjectTitle>
     {!lists.length && <Empty text={emptyText} />}
-    <div className="wardrobes">{lists.map((list) => <article className={`wardrobe ${expandedId === list.id ? "expanded" : ""}`} key={list.id}><button type="button" className="wardrobe-summary" onClick={() => setExpandedId((current) => current === list.id ? null : list.id)}><span>{list.title || "未命名穿搭"}</span><small>{list.sections.filter((section) => section.text || section.imageUrl).length} / {list.sections.length} 个分区已填写</small>{expandedId === list.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</button>
+    <div className="wardrobes">{lists.map((list) => <article className={`wardrobe ${expandedId === list.id ? "expanded" : ""}`} key={list.id}><button className="star wardrobe-star" title="收藏" onClick={async () => { await api(`/api/wardrobes/${list.id}/favorite`, { method: "PATCH" }); load(); }}>{list.isFavorite ? "★" : "☆"}</button><button type="button" className="wardrobe-summary" onClick={() => setExpandedId((current) => current === list.id ? null : list.id)}><span>{list.title || "未命名穿搭"}</span><small>{list.sections.filter((section) => section.text || section.imageUrl).length} / {list.sections.length} 个分区已填写</small>{expandedId === list.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</button>
       {expandedId === list.id && <><input value={list.title} aria-label="穿搭名称" onChange={(e) => updateList(list.id, (item) => ({ ...item, title: e.target.value }))} />
       {list.sections.map((s) => <div className="wardrobe-section" key={s.id}><strong>{labels[s.sectionType]}</strong><textarea value={s.text} onChange={(e) => updateList(list.id, (item) => ({ ...item, sections: item.sections.map((section) => section.id === s.id ? { ...section, text: e.target.value } : section) }))} /><div>{s.imageUrl && <img src={s.imageUrl} />}<label className="upload-line"><Image size={16} />上传图片<input type="file" accept="image/*" hidden onChange={(e) => e.target.files[0] && uploadSectionImage(list.id, s.id, e.target.files[0])} /></label></div></div>)}
       <button onClick={() => save(list)}>保存</button><button className="danger" onClick={async () => { if (confirmDelete()) { await api(`/api/wardrobes/${list.id}`, { method: "DELETE" }); success(); setExpandedId(null); load(); } }}>删除</button></>}
@@ -531,7 +548,7 @@ function Plans({ project, onRename, onDelete }) {
     <div className="gantt">{tasks.map((t) => {
       const left = Math.max(0, (new Date(t.startDate) - new Date(minDate)) / 86400000) * 28;
       const width = (Math.max(1, (new Date(t.endDate) - new Date(t.startDate)) / 86400000 + 1)) * 28;
-      return <div className="gantt-row" key={t.id}><span>{t.title}</span><button className={t.isDone ? "done" : ""} onClick={async () => { await api(`/api/plans/${t.id}`, { method: "PATCH", body: { ...t, isDone: !t.isDone } }); success(); load(); }}>{t.isDone ? "已完成" : "未完成"}</button><button className="danger" onClick={async () => { if (confirmDelete()) { await api(`/api/plans/${t.id}`, { method: "DELETE" }); success(); load(); } }}>删除</button><div className="bar" style={{ marginLeft: left, width, background: t.color }}>{t.startDate} - {t.endDate}</div></div>;
+      return <div className="gantt-row" key={t.id}><span>{t.title}</span><button className="star plan-star" title="收藏" onClick={async () => { await api(`/api/plans/${t.id}/favorite`, { method: "PATCH" }); load(); }}>{t.isFavorite ? "★" : "☆"}</button><button className={t.isDone ? "done" : ""} onClick={async () => { await api(`/api/plans/${t.id}`, { method: "PATCH", body: { ...t, isDone: !t.isDone } }); success(); load(); }}>{t.isDone ? "已完成" : "未完成"}</button><button className="danger" onClick={async () => { if (confirmDelete()) { await api(`/api/plans/${t.id}`, { method: "DELETE" }); success(); load(); } }}>删除</button><div className="bar" style={{ marginLeft: left, width, background: t.color }}>{t.startDate} - {t.endDate}</div></div>;
     })}</div>
   </section>;
 }
@@ -587,13 +604,22 @@ function DrawingBoard({ project, onRename, onDelete }) {
     setHistory([canvas.toDataURL("image/png")]);
     void load();
   }, [load, drawingDraftKey]);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const preventSingleFingerScroll = (event) => {
+      if (drawing.current && event.touches.length === 1) event.preventDefault();
+    };
+    canvas.addEventListener("touchmove", preventSingleFingerScroll, { passive: false });
+    return () => canvas.removeEventListener("touchmove", preventSingleFingerScroll);
+  }, []);
   const pos = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const p = e.touches?.[0] || e;
     return { x: p.clientX - rect.left, y: p.clientY - rect.top };
   };
-  const down = (e) => { if (!ctx) return; drawing.current = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
-  const move = (e) => { if (!drawing.current || !ctx) return; e.preventDefault(); const p = pos(e); ctx.strokeStyle = tool === "eraser" ? "#fff" : color; ctx.lineWidth = size; ctx.lineTo(p.x, p.y); ctx.stroke(); };
+  const down = (e) => { if (!ctx || (e.touches && e.touches.length !== 1)) { drawing.current = false; return; } drawing.current = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+  const move = (e) => { if (e.touches && e.touches.length !== 1) { drawing.current = false; return; } if (!drawing.current || !ctx) return; const p = pos(e); ctx.strokeStyle = tool === "eraser" ? "#fff" : color; ctx.lineWidth = size; ctx.lineTo(p.x, p.y); ctx.stroke(); };
   const up = () => {
     if (!drawing.current) return;
     drawing.current = false;
@@ -636,9 +662,9 @@ function DrawingBoard({ project, onRename, onDelete }) {
   };
   return <section className="feature"><ProjectTitle title={project.name} onRename={onRename} onDelete={onDelete} />
     <div className="format-row"><button className={tool === "pen" ? "active" : ""} onClick={() => setTool("pen")}><Brush size={18} />画笔</button><button className={tool === "eraser" ? "active" : ""} onClick={() => setTool("eraser")}>橡皮</button><input className="color-picker" type="color" value={color} onChange={(e) => setColor(e.target.value)} title="画笔颜色" /><input type="range" min="1" max="28" value={size} onChange={(e) => setSize(Number(e.target.value))} /><button onClick={undo}>撤销</button><button onClick={redo}>重做</button><button onClick={clear}><RotateCcw size={18} />清空</button><button onClick={save}><Save size={18} />保存</button></div>
-    <canvas className="draw-canvas" ref={canvasRef} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} onTouchStart={down} onTouchMove={move} onTouchEnd={up} />
+    <canvas className="draw-canvas" ref={canvasRef} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} onTouchStart={down} onTouchMove={move} onTouchEnd={up} onTouchCancel={up} />
     {!drawings.length && <Empty text={emptyText} />}
-    <div className="drawing-list">{drawings.map((d) => <article key={d.id}><img src={d.imageUrl} /><div className="actions"><button type="button" onClick={() => downloadPng(d)}><Download size={18} />保存 PNG</button><button className="danger" onClick={async () => { if (confirmDelete()) { await api(`/api/drawings/${d.id}`, { method: "DELETE" }); success(); load(); } }}>删除</button></div></article>)}</div>
+    <div className="drawing-list">{drawings.map((d) => <article key={d.id}><button className="star" title="收藏" onClick={async () => { await api(`/api/drawings/${d.id}/favorite`, { method: "PATCH" }); load(); }}>{d.isFavorite ? "★" : "☆"}</button><img src={d.imageUrl} /><div className="actions"><button type="button" onClick={() => downloadPng(d)}><Download size={18} />保存 PNG</button><button className="danger" onClick={async () => { if (confirmDelete()) { await api(`/api/drawings/${d.id}`, { method: "DELETE" }); success(); load(); } }}>删除</button></div></article>)}</div>
   </section>;
 }
 

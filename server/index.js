@@ -419,6 +419,13 @@ app.patch("/api/wardrobes/:id", auth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.patch("/api/wardrobes/:id/favorite", auth, (req, res) => {
+  const list = requireOwner("wardrobes", req.params.id, req.user.id);
+  if (!list) return res.status(404).json({ error: "衣橱记录不存在" });
+  db.prepare("UPDATE wardrobes SET isFavorite = ?, updatedAt = ? WHERE id = ?").run(list.isFavorite ? 0 : 1, now(), list.id);
+  res.json(toBoolRows([db.prepare("SELECT * FROM wardrobes WHERE id = ?").get(list.id)])[0]);
+});
+
 app.delete("/api/wardrobes/:id", auth, (req, res) => {
   const list = requireOwner("wardrobes", req.params.id, req.user.id);
   if (!list) return res.status(404).json({ error: "衣橱记录不存在" });
@@ -439,6 +446,12 @@ app.patch("/api/plans/:id", auth, (req, res) => {
   const body = { ...task, ...req.body };
   db.prepare("UPDATE plan_tasks SET title = ?, startDate = ?, endDate = ?, color = ?, note = ?, isDone = ?, updatedAt = ? WHERE id = ?")
     .run(body.title, body.startDate, body.endDate, body.color, body.note, body.isDone ? 1 : 0, now(), task.id);
+  res.json(toBoolRows([db.prepare("SELECT * FROM plan_tasks WHERE id = ?").get(task.id)])[0]);
+});
+app.patch("/api/plans/:id/favorite", auth, (req, res) => {
+  const task = requireOwner("plan_tasks", req.params.id, req.user.id);
+  if (!task) return res.status(404).json({ error: "任务不存在" });
+  db.prepare("UPDATE plan_tasks SET isFavorite = ?, updatedAt = ? WHERE id = ?").run(task.isFavorite ? 0 : 1, now(), task.id);
   res.json(toBoolRows([db.prepare("SELECT * FROM plan_tasks WHERE id = ?").get(task.id)])[0]);
 });
 app.delete("/api/plans/:id", auth, (req, res) => {
@@ -464,6 +477,27 @@ app.delete("/api/drawings/:id", auth, (req, res) => {
   if (!item) return res.status(404).json({ error: "画作不存在" });
   db.prepare("DELETE FROM drawings WHERE id = ?").run(item.id);
   res.json({ ok: true });
+});
+
+app.patch("/api/drawings/:id/favorite", auth, (req, res) => {
+  const item = requireOwner("drawings", req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: "画作不存在" });
+  db.prepare("UPDATE drawings SET isFavorite = ?, updatedAt = ? WHERE id = ?").run(item.isFavorite ? 0 : 1, now(), item.id);
+  res.json(toBoolRows([db.prepare("SELECT * FROM drawings WHERE id = ?").get(item.id)])[0]);
+});
+
+app.get("/api/favorites", auth, (req, res) => {
+  const notes = db.prepare(`SELECT notes.id, notes.projectId, projects.name AS projectName, projects.type AS projectType,
+    notes.title, notes.content, notes.createdAt, notes.updatedAt, 'note' AS itemType
+    FROM notes JOIN projects ON projects.id = notes.projectId
+    WHERE notes.userId = ? AND notes.isFavorite = 1 AND notes.isDeleted = 0`).all(req.user.id);
+  const wardrobes = db.prepare(`SELECT id, title, createdAt, updatedAt, 'wardrobe' AS itemType, 'wardrobe' AS projectType
+    FROM wardrobes WHERE userId = ? AND isFavorite = 1 AND isDeleted = 0`).all(req.user.id);
+  const plans = db.prepare(`SELECT id, title, note AS content, createdAt, updatedAt, 'plan' AS itemType, 'plan' AS projectType
+    FROM plan_tasks WHERE userId = ? AND isFavorite = 1`).all(req.user.id);
+  const drawings = db.prepare(`SELECT id, title, imageUrl, createdAt, updatedAt, 'drawing' AS itemType, 'drawing' AS projectType
+    FROM drawings WHERE userId = ? AND isFavorite = 1`).all(req.user.id);
+  res.json([...notes, ...wardrobes, ...plans, ...drawings].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))));
 });
 
 app.get("/api/secrets", auth, (req, res) => {
