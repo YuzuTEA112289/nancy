@@ -1,0 +1,35 @@
+services:
+  nancy:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      APP_ORIGIN: https://nancy-space.xyz
+      DATA_DIR: /app/data
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - nancy_data:/app/data
+      - nancy_uploads:/app/uploads
+
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    restart: unless-stopped
+    depends_on:
+      - nancy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  nancy_data:
+  nancy_uploads:
+  caddy_data:
+  caddy_config:

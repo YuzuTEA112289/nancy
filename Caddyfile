@@ -1,0 +1,4 @@
+nancy-space.xyz {
+    encode zstd gzip
+    reverse_proxy nancy:3000
+}

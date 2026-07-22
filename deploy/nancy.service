@@ -1,0 +1,17 @@
+[Unit]
+Description=Nancy private journal
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/nancy
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=APP_ORIGIN=https://nancy-space.xyz
+ExecStart=/usr/local/bin/npm run start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
