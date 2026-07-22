@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Brush, CalendarDays, ChefHat, ChevronDown, ChevronUp, Download, Heart, Image, ListTodo, LogOut, Menu, Mic, PenLine, Plus, RotateCcw, Save, Search, Shirt, Star, Trash2, UserRound, X } from "lucide-react";
+import { ArrowLeft, Brush, CalendarDays, ChefHat, ChevronDown, ChevronUp, Download, Heart, Image, ListTodo, LogOut, Menu, Mic, PenLine, Plus, RotateCcw, Save, Search, Shirt, Star, Trash2, UserRound, X } from "lucide-react";
 import "./styles.css";
 
 const api = async (url, options = {}) => {
@@ -290,8 +290,6 @@ function Notes({ project, secret = false, onRename, onDelete }) {
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [query, setQuery] = useState("");
-  const [newTitle, setNewTitle] = useState("");
-  const [visibleSecret, setVisibleSecret] = useState(null);
   const load = useCallback(async () => {
     try {
       const rows = await api(`/api/notes?projectId=${project.id}`);
@@ -318,35 +316,35 @@ function Notes({ project, secret = false, onRename, onDelete }) {
     const note = await api("/api/notes", { method: "POST", body: { projectId: project.id, title } });
     success();
     await load();
-    setNewTitle("");
     setSelected(note.id);
-    setVisibleSecret(note.id);
     window.dispatchEvent(new Event("nancy-data-updated"));
   };
   const filtered = notes.filter((n) => (n.title + n.content).includes(query));
-  return <div className={`notes-layout ${secret ? "secret-zone" : ""}`}>
+  if (detail) return <section className={`note-detail-page ${secret ? "secret-zone" : ""}`}>
+    <ProjectTitle title={detail.title || project.name} onRename={onRename} onDelete={onDelete}>
+      <button type="button" title="返回笔记列表" onClick={() => { setDetail(null); setSelected(null); }}><ArrowLeft size={18} /></button>
+    </ProjectTitle>
+    <NoteEditor note={detail} onSaved={() => { void load(); api(`/api/notes/${detail.id}`).then(setDetail).catch(() => {}); }} onDeleted={() => { setDetail(null); setSelected(null); void load(); }} />
+  </section>;
+  return <section className={`note-list-page ${secret ? "secret-zone" : ""}`}>
     <div className="note-list">
       <ProjectTitle title={project.name} onRename={onRename} onDelete={onDelete}><button title="新增" onClick={() => create()}><Plus size={18} /></button></ProjectTitle>
       {secret && <p className="fixed-copy">想对奶茶说什么？新增功能or分享生活都是ok的！<br />（PS:只有写在这的内容，我才看得见哦～其它都是奶昔的秘密！）</p>}
-      <div className="new-row note-create-row"><input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={secret ? "新悄悄话标题" : "新笔记标题"} onKeyDown={(e) => { if (e.key === "Enter") create(newTitle); }} /><button type="button" onClick={() => create(newTitle)}><Plus size={18} />新建</button></div>
       <label className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索笔记" /></label>
       {!filtered.length && <Empty text={emptyText} />}
-      {filtered.map((n) => <article key={n.id} className={selected === n.id ? "note-card active" : "note-card"} onClick={() => { setSelected(n.id); if (secret) setVisibleSecret(visibleSecret === n.id ? null : n.id); }}>
+      {filtered.map((n) => <article key={n.id} className="note-card" onClick={() => setSelected(n.id)}>
         <button className="star" onClick={async (e) => { e.stopPropagation(); await api(`/api/notes/${n.id}/favorite`, { method: "PATCH" }); success(); load(); }}>{n.isFavorite ? "★" : "☆"}</button>
-        {(!secret || visibleSecret === n.id) && <h3>{n.title}</h3>}
-        {(!secret || visibleSecret === n.id) && <p className="note-preview">{n.content || "还没有正文"}</p>}
-        {secret && visibleSecret !== n.id && <p className="muted">内容已隐藏，点击后查看</p>}
+        <h3>{n.title}</h3>
+        <p className="note-preview">{secret ? "点击查看内容" : n.content || "还没有正文"}</p>
         <small>创建：{fmt(n.createdAt)}</small>
       </article>)}
     </div>
-    <div className="editor-pane">{detail ? <NoteEditor note={detail} onSaved={() => { void load(); api(`/api/notes/${detail.id}`).then(setDetail).catch(() => {}); }} onDeleted={() => { setDetail(null); setSelected(null); void load(); }} /> : <Empty text="选择一条笔记开始编辑" />}</div>
-  </div>;
+  </section>;
 }
 
 function NoteEditor({ note, onSaved, onDeleted }) {
   const [form, setForm] = useState(note);
   const [recording, setRecording] = useState(false);
-  const [editorHeight, setEditorHeight] = useState(260);
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
   const formRef = useRef(note);
@@ -431,8 +429,7 @@ function NoteEditor({ note, onSaved, onDeleted }) {
       <label className="icon-upload"><Mic size={18} /><input type="file" accept="audio/*" hidden onChange={(e) => e.target.files[0] && upload(e.target.files[0], "audio")} /></label>
       <button onClick={recording ? stopRecord : startRecord}><Mic size={18} />{recording ? "停止" : "录音"}</button>
     </div>
-    <div className="editor-height-actions"><span>编辑区高度</span><button type="button" className="ghost" disabled={editorHeight <= 180} onClick={() => setEditorHeight((height) => Math.max(180, height - 120))}>缩小</button><button type="button" className="ghost" onClick={() => setEditorHeight((height) => Math.min(1200, height + 180))}>拉长</button></div>
-    <textarea style={{ minHeight: `${editorHeight}px`, color: form.textColor, background: form.backgroundColor, fontFamily: form.fontFamily, fontSize: `${form.fontSize}px` }} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+    <textarea style={{ color: form.textColor, background: form.backgroundColor, fontFamily: form.fontFamily, fontSize: `${form.fontSize}px` }} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
     <div className="attachments">{form.attachments?.map((a) => <div key={a.id} className="attachment">
       {a.type === "image" ? <img src={a.url} /> : <audio controls src={a.url} />}
       <button onClick={async () => { if (confirmDelete()) { await api(`/api/attachments/${a.id}`, { method: "DELETE" }); success(); onSaved(); } }}><X size={16} /></button>
