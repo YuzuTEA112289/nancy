@@ -41,11 +41,9 @@ function App() {
   }, [checked]);
 
   useEffect(() => {
-    const expire = () => {
-      localStorage.removeItem(privateGateKey);
-      setUser(null);
-      setChecked(false);
-    };
+    // 未登录时 /api/me 也会返回 401；这不代表入口问答已过期。
+    // 两小时到期由下面的定时器统一处理。
+    const expire = () => setUser(null);
     window.addEventListener("nancy-auth-expired", expire);
     return () => window.removeEventListener("nancy-auth-expired", expire);
   }, []);
@@ -442,7 +440,7 @@ function Trash() {
   const remain = (deletedAt) => Math.max(0, 3 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000));
   return <section><div className="section-head"><h2>垃圾箱</h2></div>
     {!items.length && <Empty text={emptyText} />}
-    <div className="cards">{items.map((n) => <article className="note-card" key={`${n.itemType}-${n.id}`}><h3>{n.title}</h3><p>{n.projectName}</p><small>删除：{fmt(n.deletedAt)} · 剩余约 {remain(n.deletedAt)} 天</small><button onClick={async () => { await api(`/api/trash/${n.itemType}/${n.id}/restore`, { method: "POST" }); success(); load(); }}>恢复</button><button className="danger" onClick={async () => { if (confirmDelete()) { await api(`/api/trash/${n.itemType}/${n.id}/permanent`, { method: "DELETE" }); success(); load(); } }}>永久删除</button></article>)}</div>
+    <div className="cards">{items.map((n) => <article className="note-card" key={`${n.itemType}-${n.id}`}><h3>{n.title}</h3>{n.imageUrl ? <img className="trash-image" src={n.imageUrl} alt={n.title} /> : <p>{n.projectName}</p>}<small>删除：{fmt(n.deletedAt)} · 剩余约 {remain(n.deletedAt)} 天</small><button onClick={async () => { await api(`/api/trash/${n.itemType}/${n.id}/restore`, { method: "POST" }); success(); load(); }}>恢复</button><button className="danger" onClick={async () => { if (confirmDelete()) { await api(`/api/trash/${n.itemType}/${n.id}/permanent`, { method: "DELETE" }); success(); load(); } }}>永久删除</button></article>)}</div>
   </section>;
 }
 

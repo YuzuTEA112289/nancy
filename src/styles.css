@@ -119,6 +119,7 @@ h1, h2, h3, p { margin-top: 0; }
 .wardrobe { position: relative; }
 .wardrobe-star { right: 12px; top: 9px; }
 .favorite-image { width: 100%; aspect-ratio: 1.2; object-fit: contain; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.trash-image { width: 100%; aspect-ratio: 1.2; object-fit: contain; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; background: white; }
 .favorites-filter { width: min(170px, 45vw); }
 .favorites-head h2 { white-space: nowrap; }
 .mobile-project-back { display: none; }

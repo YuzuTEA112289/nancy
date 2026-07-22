@@ -231,7 +231,7 @@ app.get("/api/trash", auth, (req, res) => {
     FROM notes JOIN projects ON projects.id = notes.projectId WHERE notes.userId = ? AND notes.isDeleted = 1`).all(req.user.id);
   const wardrobes = db.prepare("SELECT id, title, '衣橱' AS projectName, deletedAt, 'wardrobe' AS itemType FROM wardrobes WHERE userId = ? AND isDeleted = 1").all(req.user.id);
   const plans = db.prepare("SELECT id, title, '规划' AS projectName, deletedAt, 'plan' AS itemType FROM plan_tasks WHERE userId = ? AND isDeleted = 1").all(req.user.id);
-  const drawings = db.prepare("SELECT id, title, '画画' AS projectName, deletedAt, 'drawing' AS itemType FROM drawings WHERE userId = ? AND isDeleted = 1").all(req.user.id);
+  const drawings = db.prepare("SELECT id, title, imageUrl, '画画' AS projectName, deletedAt, 'drawing' AS itemType FROM drawings WHERE userId = ? AND isDeleted = 1").all(req.user.id);
   res.json([...notes, ...wardrobes, ...plans, ...drawings].sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt))));
 });
 
