@@ -141,6 +141,8 @@ function Shell({ user, setUser }) {
   const [visitedTabs, setVisitedTabs] = useState(() => new Set(["tools"]));
   const [projects, setProjects] = useState([]);
   const [activeProjectId, setActiveProjectId] = useState(null);
+  const [toolsResetVersion, setToolsResetVersion] = useState(0);
+  const [toolsOpenVersion, setToolsOpenVersion] = useState(0);
   const projectLoadSeq = useRef(0);
   const activeProject = projects.find((item) => item.id === activeProjectId) || null;
   const loadProjects = useCallback(async (preferredId) => {
@@ -162,7 +164,8 @@ function Shell({ user, setUser }) {
     }
   }, [setUser]);
   useEffect(() => { void loadProjects(); }, [loadProjects]);
-  const navigate = useCallback((nextTab) => {
+  const navigate = useCallback((nextTab, preserveToolsView = false) => {
+    if (nextTab === "tools" && !preserveToolsView) setToolsResetVersion((version) => version + 1);
     setVisitedTabs((current) => current.has(nextTab) ? current : new Set([...current, nextTab]));
     setTab(nextTab);
   }, []);
@@ -179,8 +182,8 @@ function Shell({ user, setUser }) {
       <nav>{nav.map(([id, label, Icon]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => navigate(id)}><Icon size={18} />{label}</button>)}</nav>
     </aside>
     <main className="workspace">
-      {visitedTabs.has("tools") && <TabPanel active={tab === "tools"}><Tools projects={projects} activeProject={activeProject} setActiveProjectId={setActiveProjectId} reload={loadProjects} /></TabPanel>}
-      {visitedTabs.has("favorites") && <TabPanel active={tab === "favorites"}><Favorites projects={projects} openProject={(projectId) => { setActiveProjectId(projectId); navigate("tools"); }} /></TabPanel>}
+      {visitedTabs.has("tools") && <TabPanel active={tab === "tools"}><Tools projects={projects} activeProject={activeProject} setActiveProjectId={setActiveProjectId} reload={loadProjects} mobileResetVersion={toolsResetVersion} mobileOpenVersion={toolsOpenVersion} /></TabPanel>}
+      {visitedTabs.has("favorites") && <TabPanel active={tab === "favorites"}><Favorites projects={projects} openProject={(projectId) => { setActiveProjectId(projectId); setToolsOpenVersion((version) => version + 1); navigate("tools", true); }} /></TabPanel>}
       {visitedTabs.has("trash") && <TabPanel active={tab === "trash"}><Trash active={tab === "trash"} /></TabPanel>}
       {visitedTabs.has("accounts") && <TabPanel active={tab === "accounts"}><Accounts user={user} setUser={setUser} /></TabPanel>}
     </main>
@@ -192,9 +195,11 @@ function TabPanel({ active, children }) {
   return <div className="tab-panel" hidden={!active}>{children}</div>;
 }
 
-function Tools({ projects, activeProject, setActiveProjectId, reload }) {
+function Tools({ projects, activeProject, setActiveProjectId, reload, mobileResetVersion, mobileOpenVersion }) {
   const [recoveryVersion, setRecoveryVersion] = useState(0);
   const [mobileProjectOpen, setMobileProjectOpen] = useState(false);
+  useEffect(() => { setMobileProjectOpen(false); }, [mobileResetVersion]);
+  useEffect(() => { if (mobileOpenVersion) setMobileProjectOpen(true); }, [mobileOpenVersion]);
   const createProject = async () => {
     const name = prompt("项目文件夹名称");
     if (!name?.trim()) return;
@@ -330,7 +335,7 @@ function Notes({ project, secret = false, onRename, onDelete }) {
         <small>创建：{fmt(n.createdAt)}</small>
       </article>)}
     </div>
-    <div className="editor-pane">{detail ? <NoteEditor note={detail} onSaved={() => { load(); api(`/api/notes/${detail.id}`).then(setDetail); }} onDeleted={() => { setDetail(null); setSelected(null); load(); }} /> : <Empty text="选择一条笔记开始编辑" />}</div>
+    <div className="editor-pane">{detail ? <NoteEditor note={detail} onSaved={() => { void load(); api(`/api/notes/${detail.id}`).then(setDetail).catch(() => {}); }} onDeleted={() => { setDetail(null); setSelected(null); void load(); }} /> : <Empty text="选择一条笔记开始编辑" />}</div>
   </div>;
 }
 
@@ -449,7 +454,7 @@ function Favorites({ projects, openProject }) {
   const projectFolder = (item) => item.projectName || projects.find((p) => p.type === item.projectType)?.name || "未分类项目";
   return <section><div className="section-head favorites-head"><h2>收藏夹</h2><select className="favorites-filter" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">全部项目</option>{availableProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
     {!rows.length && <Empty text={emptyText} />}
-    <div className="cards">{rows.map((item) => <article className="note-card" key={`${item.itemType}-${item.id}`}><button className="star" onClick={() => unfavorite(item)}>★</button><h3>{item.title}</h3>{item.imageUrl ? <img className="favorite-image" src={item.imageUrl} alt={item.title} /> : <p className="note-preview">{item.content || projectFolder(item)}</p>}<small>{projectFolder(item)} · 更新：{fmt(item.updatedAt)}</small><button onClick={() => openItem(item)}>进入原项目</button></article>)}</div>
+    <div className="cards">{rows.map((item) => <article className="note-card" key={`${item.itemType}-${item.id}`}><button className="star" onClick={() => unfavorite(item)}>★</button><h3>{item.title}</h3>{item.imageUrl ? <img className="favorite-image" src={item.imageUrl} alt={item.title} /> : <p className="note-preview">{item.content || "暂无内容"}</p>}<small>{projectFolder(item)} · 更新：{fmt(item.updatedAt)}</small><button onClick={() => openItem(item)}>进入原项目</button></article>)}</div>
   </section>;
 }
 
