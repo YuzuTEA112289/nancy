@@ -181,7 +181,7 @@ function Shell({ user, setUser }) {
     <main className="workspace">
       {visitedTabs.has("tools") && <TabPanel active={tab === "tools"}><Tools projects={projects} activeProject={activeProject} setActiveProjectId={setActiveProjectId} reload={loadProjects} /></TabPanel>}
       {visitedTabs.has("favorites") && <TabPanel active={tab === "favorites"}><Favorites projects={projects} openProject={(projectId) => { setActiveProjectId(projectId); navigate("tools"); }} /></TabPanel>}
-      {visitedTabs.has("trash") && <TabPanel active={tab === "trash"}><Trash /></TabPanel>}
+      {visitedTabs.has("trash") && <TabPanel active={tab === "trash"}><Trash active={tab === "trash"} /></TabPanel>}
       {visitedTabs.has("accounts") && <TabPanel active={tab === "accounts"}><Accounts user={user} setUser={setUser} /></TabPanel>}
     </main>
     <nav className="bottom-nav">{nav.map(([id, label, Icon]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => navigate(id)}><Icon size={20} /><span>{label}</span></button>)}</nav>
@@ -366,8 +366,27 @@ function NoteEditor({ note, onSaved, onDeleted }) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [draftKey]);
-  const save = async () => { await api(`/api/notes/${note.id}`, { method: "PATCH", body: form }); localStorage.removeItem(draftKey); success(); onSaved(); };
-  const del = async () => { if (confirmDelete()) { await api(`/api/notes/${note.id}`, { method: "DELETE" }); success(); onDeleted(); } };
+  const save = async () => {
+    try {
+      await api(`/api/notes/${note.id}`, { method: "PATCH", body: form });
+      localStorage.removeItem(draftKey);
+      success();
+      onSaved();
+    } catch (error) {
+      window.alert(`保存失败：${error.message}`);
+    }
+  };
+  const del = async () => {
+    if (!confirmDelete()) return;
+    try {
+      await api(`/api/notes/${note.id}`, { method: "DELETE" });
+      localStorage.removeItem(draftKey);
+      success();
+      onDeleted();
+    } catch (error) {
+      window.alert(`删除失败：${error.message}`);
+    }
+  };
   const upload = async (file, type) => {
     const fd = new FormData();
     fd.append("file", file);
@@ -433,10 +452,10 @@ function Favorites({ projects, openProject }) {
   </section>;
 }
 
-function Trash() {
+function Trash({ active }) {
   const [items, setItems] = useState([]);
   const load = () => api("/api/trash").then(setItems);
-  useEffect(load, []);
+  useEffect(() => { if (active) load(); }, [active]);
   const remain = (deletedAt) => Math.max(0, 3 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000));
   return <section><div className="section-head"><h2>垃圾箱</h2></div>
     {!items.length && <Empty text={emptyText} />}
