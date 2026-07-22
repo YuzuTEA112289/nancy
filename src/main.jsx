@@ -24,7 +24,8 @@ const emptyText = "这里还空空如也哦～";
 const emptyRecipeData = { items: [], draws: [] };
 
 function App() {
-  const [checked, setChecked] = useState(localStorage.getItem("private-ok-date") === todayKey());
+  // 入口问答不再按日期缓存：每次重新打开页面都需要完成验证。
+  const [checked, setChecked] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -44,7 +45,7 @@ function App() {
     return () => window.removeEventListener("nancy-auth-expired", expire);
   }, []);
 
-  if (!checked) return <PrivateCheck onDone={() => { localStorage.setItem("private-ok-date", todayKey()); setChecked(true); }} />;
+  if (!checked) return <PrivateCheck onDone={() => setChecked(true)} />;
   if (loading) return <Splash text="正在打开小奶昔的网站..." />;
   if (!user) return <Auth onAuthed={setUser} />;
   return <Shell user={user} setUser={setUser} />;
@@ -58,7 +59,8 @@ function PrivateCheck({ onDone }) {
   const questions = [
     { text: "1. 世界上最最最可爱的人是？", answers: ["奶昔","我", "小奶昔", "昔", "昔昔", "陈静宜", "静宜", "西米", "昔米", "昔咪"], ok: "对啦！", fail: "不对啦！", strict: true },
     { text: "2. 今天开不开心？", answers: ["开心", "嗯嗯", "yes"], ok: "好耶！o(^▽^)o", fail: "抱抱奶昔(´･ω･`)", strict: false, exact: true },
-    { text: "3. 我是谁呀？", answers: ["奶茶", "茶", "茶茶", "张佳琪", "佳琪", "tea", "zjq"], ok: "欢迎奶昔～这里是奶昔的小世界", fail: "go awayyyyyy!!这是奶昔的私人网站", strict: true }
+    { text: "3. 我是谁呀？", answers: ["奶茶", "茶", "茶茶", "张佳琪", "佳琪", "tea", "zjq"], ok: "欢迎奶昔～这里是奶昔的小世界", fail: "go awayyyyyy!!这是奶昔的私人网站", strict: true },
+    { text: "4. 暗号是什么？", answers: ["123Qiaokeli"], ok: "暗号正确，正在进入…", fail: "暗号错误！", strict: true, exact: true, password: true }
   ];
   const [step, setStep] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -66,9 +68,10 @@ function PrivateCheck({ onDone }) {
   const q = questions[step];
   const submit = (e) => {
     e.preventDefault();
-    const value = answer.trim().toLowerCase();
-    // 第二题必须完整匹配，避免“不开心”因为包含“开心”而被误判。
-    const pass = q.answers.some((a) => q.exact ? value === a.toLowerCase() : value.includes(a.toLowerCase()));
+    const value = answer.trim();
+    // 第二题必须完整匹配，避免“不开心”因为包含“开心”而被误判；暗号区分大小写。
+    const comparable = q.password ? value : value.toLowerCase();
+    const pass = q.answers.some((a) => q.exact ? comparable === (q.password ? a : a.toLowerCase()) : comparable.includes(a.toLowerCase()));
     setMsg(pass ? q.ok : q.fail);
     if (pass || !q.strict) {
       setTimeout(() => {
@@ -82,7 +85,7 @@ function PrivateCheck({ onDone }) {
       <span className="eyebrow">Q&A</span>
       <h2>这是小奶昔的网站！</h2>
       <h1>{q.text}</h1>
-      <input autoFocus value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="悄悄写在这里" />
+    <input autoFocus type={q.password ? "password" : "text"} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder={q.password ? "请输入暗号" : "悄悄写在这里"} />
       <button>回答</button>
       {msg && <p className="feedback">{msg}</p>}
     </form>
