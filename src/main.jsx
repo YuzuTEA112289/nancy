@@ -446,9 +446,10 @@ function Favorites({ projects, openProject }) {
     const project = item.itemType === "note" ? projects.find((p) => p.id === item.projectId) : projects.find((p) => p.type === item.projectType);
     if (project) openProject(project.id);
   };
+  const projectFolder = (item) => item.projectName || projects.find((p) => p.type === item.projectType)?.name || "未分类项目";
   return <section><div className="section-head favorites-head"><h2>收藏夹</h2><select className="favorites-filter" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">全部项目</option>{availableProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
     {!rows.length && <Empty text={emptyText} />}
-    <div className="cards">{rows.map((item) => <article className="note-card" key={`${item.itemType}-${item.id}`}><button className="star" onClick={() => unfavorite(item)}>★</button><h3>{item.title}</h3>{item.imageUrl ? <img className="favorite-image" src={item.imageUrl} alt={item.title} /> : <p className="note-preview">{item.content || "衣橱记录"}</p>}<small>{item.projectName || ({ wardrobe: "衣橱", plan: "规划", drawing: "画画" }[item.projectType])} · 更新：{fmt(item.updatedAt)}</small><button onClick={() => openItem(item)}>进入原项目</button></article>)}</div>
+    <div className="cards">{rows.map((item) => <article className="note-card" key={`${item.itemType}-${item.id}`}><button className="star" onClick={() => unfavorite(item)}>★</button><h3>{item.title}</h3>{item.imageUrl ? <img className="favorite-image" src={item.imageUrl} alt={item.title} /> : <p className="note-preview">{item.content || projectFolder(item)}</p>}<small>{projectFolder(item)} · 更新：{fmt(item.updatedAt)}</small><button onClick={() => openItem(item)}>进入原项目</button></article>)}</div>
   </section>;
 }
 
