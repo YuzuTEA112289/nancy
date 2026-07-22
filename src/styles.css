@@ -72,6 +72,8 @@ h1, h2, h3, p { margin-top: 0; }
 .editor { background: white; border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
 .title-input { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
 .format-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.editor-height-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 8px 0; color: #897a94; font-size: 13px; font-weight: 700; }
+.editor-height-actions button { min-height: 32px; padding: 0 10px; }
 .color-picker { width: 46px; height: 40px; padding: 4px; }
 .format-row input[type="number"] { width: 78px; }
 .format-row select { width: 120px; }

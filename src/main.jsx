@@ -183,7 +183,7 @@ function Shell({ user, setUser }) {
     </aside>
     <main className="workspace">
       {visitedTabs.has("tools") && <TabPanel active={tab === "tools"}><Tools projects={projects} activeProject={activeProject} setActiveProjectId={setActiveProjectId} reload={loadProjects} mobileResetVersion={toolsResetVersion} mobileOpenVersion={toolsOpenVersion} /></TabPanel>}
-      {visitedTabs.has("favorites") && <TabPanel active={tab === "favorites"}><Favorites projects={projects} openProject={(projectId) => { setActiveProjectId(projectId); setToolsOpenVersion((version) => version + 1); navigate("tools", true); }} /></TabPanel>}
+      {visitedTabs.has("favorites") && <TabPanel active={tab === "favorites"}><Favorites active={tab === "favorites"} projects={projects} openProject={(projectId) => { setActiveProjectId(projectId); setToolsOpenVersion((version) => version + 1); navigate("tools", true); }} /></TabPanel>}
       {visitedTabs.has("trash") && <TabPanel active={tab === "trash"}><Trash active={tab === "trash"} /></TabPanel>}
       {visitedTabs.has("accounts") && <TabPanel active={tab === "accounts"}><Accounts user={user} setUser={setUser} /></TabPanel>}
     </main>
@@ -290,6 +290,7 @@ function Notes({ project, secret = false, onRename, onDelete }) {
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [query, setQuery] = useState("");
+  const [newTitle, setNewTitle] = useState("");
   const [visibleSecret, setVisibleSecret] = useState(null);
   const load = useCallback(async () => {
     try {
@@ -311,20 +312,23 @@ function Notes({ project, secret = false, onRename, onDelete }) {
     return () => { cancelled = true; };
   }, [project.id]);
   useEffect(() => { if (selected) api(`/api/notes/${selected}`).then(setDetail).catch(() => { setSelected(null); setDetail(null); }); }, [selected]);
-  const create = async () => {
-    const title = prompt(secret ? "悄悄话标题" : "笔记标题");
+  const create = async (inlineTitle) => {
+    const title = inlineTitle === undefined ? prompt(secret ? "悄悄话标题" : "笔记标题") : inlineTitle;
     if (!title?.trim()) return;
     const note = await api("/api/notes", { method: "POST", body: { projectId: project.id, title } });
     success();
     await load();
+    setNewTitle("");
     setSelected(note.id);
     setVisibleSecret(note.id);
+    window.dispatchEvent(new Event("nancy-data-updated"));
   };
   const filtered = notes.filter((n) => (n.title + n.content).includes(query));
   return <div className={`notes-layout ${secret ? "secret-zone" : ""}`}>
     <div className="note-list">
-      <ProjectTitle title={project.name} onRename={onRename} onDelete={onDelete}><button title="新增" onClick={create}><Plus size={18} /></button></ProjectTitle>
+      <ProjectTitle title={project.name} onRename={onRename} onDelete={onDelete}><button title="新增" onClick={() => create()}><Plus size={18} /></button></ProjectTitle>
       {secret && <p className="fixed-copy">想对奶茶说什么？新增功能or分享生活都是ok的！<br />（PS:只有写在这的内容，我才看得见哦～其它都是奶昔的秘密！）</p>}
+      <div className="new-row note-create-row"><input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={secret ? "新悄悄话标题" : "新笔记标题"} onKeyDown={(e) => { if (e.key === "Enter") create(newTitle); }} /><button type="button" onClick={() => create(newTitle)}><Plus size={18} />新建</button></div>
       <label className="search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索笔记" /></label>
       {!filtered.length && <Empty text={emptyText} />}
       {filtered.map((n) => <article key={n.id} className={selected === n.id ? "note-card active" : "note-card"} onClick={() => { setSelected(n.id); if (secret) setVisibleSecret(visibleSecret === n.id ? null : n.id); }}>
@@ -342,6 +346,7 @@ function Notes({ project, secret = false, onRename, onDelete }) {
 function NoteEditor({ note, onSaved, onDeleted }) {
   const [form, setForm] = useState(note);
   const [recording, setRecording] = useState(false);
+  const [editorHeight, setEditorHeight] = useState(260);
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
   const formRef = useRef(note);
@@ -377,6 +382,7 @@ function NoteEditor({ note, onSaved, onDeleted }) {
       localStorage.removeItem(draftKey);
       success();
       onSaved();
+      window.dispatchEvent(new Event("nancy-data-updated"));
     } catch (error) {
       window.alert(`保存失败：${error.message}`);
     }
@@ -388,6 +394,7 @@ function NoteEditor({ note, onSaved, onDeleted }) {
       localStorage.removeItem(draftKey);
       success();
       onDeleted();
+      window.dispatchEvent(new Event("nancy-data-updated"));
     } catch (error) {
       window.alert(`删除失败：${error.message}`);
     }
@@ -424,7 +431,8 @@ function NoteEditor({ note, onSaved, onDeleted }) {
       <label className="icon-upload"><Mic size={18} /><input type="file" accept="audio/*" hidden onChange={(e) => e.target.files[0] && upload(e.target.files[0], "audio")} /></label>
       <button onClick={recording ? stopRecord : startRecord}><Mic size={18} />{recording ? "停止" : "录音"}</button>
     </div>
-    <textarea style={{ color: form.textColor, background: form.backgroundColor, fontFamily: form.fontFamily, fontSize: `${form.fontSize}px` }} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+    <div className="editor-height-actions"><span>编辑区高度</span><button type="button" className="ghost" disabled={editorHeight <= 180} onClick={() => setEditorHeight((height) => Math.max(180, height - 120))}>缩小</button><button type="button" className="ghost" onClick={() => setEditorHeight((height) => Math.min(1200, height + 180))}>拉长</button></div>
+    <textarea style={{ minHeight: `${editorHeight}px`, color: form.textColor, background: form.backgroundColor, fontFamily: form.fontFamily, fontSize: `${form.fontSize}px` }} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
     <div className="attachments">{form.attachments?.map((a) => <div key={a.id} className="attachment">
       {a.type === "image" ? <img src={a.url} /> : <audio controls src={a.url} />}
       <button onClick={async () => { if (confirmDelete()) { await api(`/api/attachments/${a.id}`, { method: "DELETE" }); success(); onSaved(); } }}><X size={16} /></button>
@@ -434,11 +442,18 @@ function NoteEditor({ note, onSaved, onDeleted }) {
   </div>;
 }
 
-function Favorites({ projects, openProject }) {
+function Favorites({ active, projects, openProject }) {
   const [notes, setNotes] = useState([]);
   const [filter, setFilter] = useState("");
   const load = () => api("/api/favorites").then(setNotes);
-  useEffect(load, []);
+  useEffect(() => {
+    if (active) load();
+  }, [active]);
+  useEffect(() => {
+    const refresh = () => load();
+    window.addEventListener("nancy-data-updated", refresh);
+    return () => window.removeEventListener("nancy-data-updated", refresh);
+  }, []);
   const availableProjects = projects.filter((p) => p.type !== "recipe");
   const rows = filter ? notes.filter((item) => String(item.projectId) === filter || projects.find((p) => String(p.id) === filter)?.type === item.projectType) : notes;
   const unfavorite = async (item) => {
