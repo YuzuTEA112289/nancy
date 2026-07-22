@@ -22,10 +22,11 @@ const success = () => window.alert("操作成功！");
 const confirmDelete = () => window.confirm("确定要删除吗？");
 const emptyText = "这里还空空如也哦～";
 const emptyRecipeData = { items: [], draws: [] };
+const privateGateKey = "nancy-private-gate-expires-at";
+const privateGateDuration = 2 * 60 * 60 * 1000;
 
 function App() {
-  // 入口问答不再按日期缓存：每次重新打开页面都需要完成验证。
-  const [checked, setChecked] = useState(false);
+  const [checked, setChecked] = useState(() => Number(localStorage.getItem(privateGateKey)) > Date.now());
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,12 +41,30 @@ function App() {
   }, [checked]);
 
   useEffect(() => {
-    const expire = () => setUser(null);
+    const expire = () => {
+      localStorage.removeItem(privateGateKey);
+      setUser(null);
+      setChecked(false);
+    };
     window.addEventListener("nancy-auth-expired", expire);
     return () => window.removeEventListener("nancy-auth-expired", expire);
   }, []);
+  useEffect(() => {
+    if (!checked) return undefined;
+    const remaining = Number(localStorage.getItem(privateGateKey)) - Date.now();
+    if (remaining <= 0) {
+      setChecked(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      localStorage.removeItem(privateGateKey);
+      setUser(null);
+      setChecked(false);
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [checked]);
 
-  if (!checked) return <PrivateCheck onDone={() => setChecked(true)} />;
+  if (!checked) return <PrivateCheck onDone={() => { localStorage.setItem(privateGateKey, String(Date.now() + privateGateDuration)); setChecked(true); }} />;
   if (loading) return <Splash text="正在打开小奶昔的网站..." />;
   if (!user) return <Auth onAuthed={setUser} />;
   return <Shell user={user} setUser={setUser} />;

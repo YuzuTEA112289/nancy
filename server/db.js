@@ -129,6 +129,8 @@ CREATE TABLE IF NOT EXISTS plan_tasks (
   note TEXT NOT NULL DEFAULT '',
   isDone INTEGER NOT NULL DEFAULT 0,
   isFavorite INTEGER NOT NULL DEFAULT 0,
+  isDeleted INTEGER NOT NULL DEFAULT 0,
+  deletedAt TEXT,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
@@ -140,6 +142,8 @@ CREATE TABLE IF NOT EXISTS drawings (
   title TEXT NOT NULL,
   imageUrl TEXT NOT NULL,
   isFavorite INTEGER NOT NULL DEFAULT 0,
+  isDeleted INTEGER NOT NULL DEFAULT 0,
+  deletedAt TEXT,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
@@ -160,6 +164,8 @@ export function cleanupTrash(userId) {
   const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   db.prepare("DELETE FROM notes WHERE userId = ? AND isDeleted = 1 AND deletedAt < ?").run(userId, cutoff);
   db.prepare("DELETE FROM wardrobes WHERE userId = ? AND isDeleted = 1 AND deletedAt < ?").run(userId, cutoff);
+  db.prepare("DELETE FROM plan_tasks WHERE userId = ? AND isDeleted = 1 AND deletedAt < ?").run(userId, cutoff);
+  db.prepare("DELETE FROM drawings WHERE userId = ? AND isDeleted = 1 AND deletedAt < ?").run(userId, cutoff);
 }
 
 function ensureColumn(table, column, definition) {
@@ -172,3 +178,7 @@ ensureColumn("wardrobes", "deletedAt", "TEXT");
 ensureColumn("wardrobes", "isFavorite", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("plan_tasks", "isFavorite", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("drawings", "isFavorite", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("plan_tasks", "isDeleted", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("plan_tasks", "deletedAt", "TEXT");
+ensureColumn("drawings", "isDeleted", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("drawings", "deletedAt", "TEXT");

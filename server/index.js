@@ -68,14 +68,7 @@ const welcomeDiaryContent = `嘿嘿～这是奶茶写的使用指南！目前设
 
 By Tea
 26.7.21 finished`;
-const shanghaiToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
-const nextShanghaiMidnight = () => {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const y = Number(parts.find((p) => p.type === "year").value);
-  const m = Number(parts.find((p) => p.type === "month").value);
-  const d = Number(parts.find((p) => p.type === "day").value);
-  return new Date(Date.UTC(y, m - 1, d + 1, -8, 0, 0)).toISOString();
-};
+const sessionExpiresAt = () => new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
 
 function publicUser(user) {
   return user && { id: user.id, username: user.username, createdAt: user.createdAt, updatedAt: user.updatedAt, lastLoginAt: user.lastLoginAt };
@@ -104,7 +97,7 @@ function seedUser(userId, { createWelcome = false } = {}) {
 function createSession(res, userId) {
   const token = crypto.randomBytes(32).toString("hex");
   const createdAt = now();
-  const expiresAt = nextShanghaiMidnight();
+  const expiresAt = sessionExpiresAt();
   db.prepare("INSERT INTO sessions (token, userId, createdAt, expiresAt) VALUES (?, ?, ?, ?)").run(token, userId, createdAt, expiresAt);
   res.cookie("nancy_session", token, { httpOnly: true, sameSite: "lax", secure: isProd, expires: new Date(expiresAt) });
 }
@@ -113,7 +106,7 @@ function auth(req, res, next) {
   const token = req.cookies.nancy_session || req.headers.authorization?.replace("Bearer ", "");
   if (!token) return res.status(401).json({ error: "未登录" });
   const session = db.prepare("SELECT * FROM sessions WHERE token = ? AND expiresAt > ?").get(token, now());
-  if (!session || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date(session.createdAt)) !== shanghaiToday()) {
+  if (!session) {
     if (token) db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
     res.clearCookie("nancy_session");
     return res.status(401).json({ error: "登录已过期" });
@@ -237,7 +230,9 @@ app.get("/api/trash", auth, (req, res) => {
   const notes = db.prepare(`SELECT notes.id, notes.title, projects.name AS projectName, notes.deletedAt, 'note' AS itemType
     FROM notes JOIN projects ON projects.id = notes.projectId WHERE notes.userId = ? AND notes.isDeleted = 1`).all(req.user.id);
   const wardrobes = db.prepare("SELECT id, title, '衣橱' AS projectName, deletedAt, 'wardrobe' AS itemType FROM wardrobes WHERE userId = ? AND isDeleted = 1").all(req.user.id);
-  res.json([...notes, ...wardrobes].sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt))));
+  const plans = db.prepare("SELECT id, title, '规划' AS projectName, deletedAt, 'plan' AS itemType FROM plan_tasks WHERE userId = ? AND isDeleted = 1").all(req.user.id);
+  const drawings = db.prepare("SELECT id, title, '画画' AS projectName, deletedAt, 'drawing' AS itemType FROM drawings WHERE userId = ? AND isDeleted = 1").all(req.user.id);
+  res.json([...notes, ...wardrobes, ...plans, ...drawings].sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt))));
 });
 
 app.post("/api/trash/:type/:id/restore", auth, (req, res) => {
@@ -251,6 +246,18 @@ app.post("/api/trash/:type/:id/restore", auth, (req, res) => {
     const list = requireOwner("wardrobes", req.params.id, req.user.id);
     if (!list) return res.status(404).json({ error: "衣橱记录不存在" });
     db.prepare("UPDATE wardrobes SET isDeleted = 0, deletedAt = NULL, updatedAt = ? WHERE id = ?").run(now(), list.id);
+    return res.json({ ok: true });
+  }
+  if (req.params.type === "plan") {
+    const task = requireOwner("plan_tasks", req.params.id, req.user.id);
+    if (!task) return res.status(404).json({ error: "任务不存在" });
+    db.prepare("UPDATE plan_tasks SET isDeleted = 0, deletedAt = NULL, updatedAt = ? WHERE id = ?").run(now(), task.id);
+    return res.json({ ok: true });
+  }
+  if (req.params.type === "drawing") {
+    const drawing = requireOwner("drawings", req.params.id, req.user.id);
+    if (!drawing) return res.status(404).json({ error: "画作不存在" });
+    db.prepare("UPDATE drawings SET isDeleted = 0, deletedAt = NULL, updatedAt = ? WHERE id = ?").run(now(), drawing.id);
     return res.json({ ok: true });
   }
   res.status(400).json({ error: "不支持的垃圾箱类型" });
@@ -267,6 +274,19 @@ app.delete("/api/trash/:type/:id/permanent", auth, (req, res) => {
     const list = requireOwner("wardrobes", req.params.id, req.user.id);
     if (!list) return res.status(404).json({ error: "衣橱记录不存在" });
     db.prepare("DELETE FROM wardrobes WHERE id = ?").run(list.id);
+    return res.json({ ok: true });
+  }
+  if (req.params.type === "plan") {
+    const task = requireOwner("plan_tasks", req.params.id, req.user.id);
+    if (!task) return res.status(404).json({ error: "任务不存在" });
+    db.prepare("DELETE FROM plan_tasks WHERE id = ?").run(task.id);
+    return res.json({ ok: true });
+  }
+  if (req.params.type === "drawing") {
+    const drawing = requireOwner("drawings", req.params.id, req.user.id);
+    if (!drawing) return res.status(404).json({ error: "画作不存在" });
+    db.prepare("DELETE FROM drawings WHERE id = ?").run(drawing.id);
+    fs.rmSync(path.join(uploadDir, path.basename(drawing.imageUrl)), { force: true });
     return res.json({ ok: true });
   }
   res.status(400).json({ error: "不支持的垃圾箱类型" });
@@ -433,7 +453,7 @@ app.delete("/api/wardrobes/:id", auth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/plans", auth, (req, res) => res.json(toBoolRows(db.prepare("SELECT * FROM plan_tasks WHERE userId = ? ORDER BY startDate").all(req.user.id))));
+app.get("/api/plans", auth, (req, res) => res.json(toBoolRows(db.prepare("SELECT * FROM plan_tasks WHERE userId = ? AND isDeleted = 0 ORDER BY startDate").all(req.user.id))));
 app.post("/api/plans", auth, (req, res) => {
   const t = now();
   const result = db.prepare("INSERT INTO plan_tasks (userId, title, startDate, endDate, color, note, isDone, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -457,11 +477,11 @@ app.patch("/api/plans/:id/favorite", auth, (req, res) => {
 app.delete("/api/plans/:id", auth, (req, res) => {
   const task = requireOwner("plan_tasks", req.params.id, req.user.id);
   if (!task) return res.status(404).json({ error: "任务不存在" });
-  db.prepare("DELETE FROM plan_tasks WHERE id = ?").run(task.id);
+  db.prepare("UPDATE plan_tasks SET isDeleted = 1, deletedAt = ?, updatedAt = ? WHERE id = ?").run(now(), now(), task.id);
   res.json({ ok: true });
 });
 
-app.get("/api/drawings", auth, (req, res) => res.json(db.prepare("SELECT * FROM drawings WHERE userId = ? ORDER BY updatedAt DESC").all(req.user.id)));
+app.get("/api/drawings", auth, (req, res) => res.json(toBoolRows(db.prepare("SELECT * FROM drawings WHERE userId = ? AND isDeleted = 0 ORDER BY updatedAt DESC").all(req.user.id))));
 app.post("/api/drawings", auth, (req, res) => {
   const imageData = String(req.body.imageData || "");
   const match = imageData.match(/^data:image\/png;base64,(.+)$/);
@@ -475,7 +495,7 @@ app.post("/api/drawings", auth, (req, res) => {
 app.delete("/api/drawings/:id", auth, (req, res) => {
   const item = requireOwner("drawings", req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: "画作不存在" });
-  db.prepare("DELETE FROM drawings WHERE id = ?").run(item.id);
+  db.prepare("UPDATE drawings SET isDeleted = 1, deletedAt = ?, updatedAt = ? WHERE id = ?").run(now(), now(), item.id);
   res.json({ ok: true });
 });
 
@@ -494,9 +514,9 @@ app.get("/api/favorites", auth, (req, res) => {
   const wardrobes = db.prepare(`SELECT id, title, createdAt, updatedAt, 'wardrobe' AS itemType, 'wardrobe' AS projectType
     FROM wardrobes WHERE userId = ? AND isFavorite = 1 AND isDeleted = 0`).all(req.user.id);
   const plans = db.prepare(`SELECT id, title, note AS content, createdAt, updatedAt, 'plan' AS itemType, 'plan' AS projectType
-    FROM plan_tasks WHERE userId = ? AND isFavorite = 1`).all(req.user.id);
+    FROM plan_tasks WHERE userId = ? AND isFavorite = 1 AND isDeleted = 0`).all(req.user.id);
   const drawings = db.prepare(`SELECT id, title, imageUrl, createdAt, updatedAt, 'drawing' AS itemType, 'drawing' AS projectType
-    FROM drawings WHERE userId = ? AND isFavorite = 1`).all(req.user.id);
+    FROM drawings WHERE userId = ? AND isFavorite = 1 AND isDeleted = 0`).all(req.user.id);
   res.json([...notes, ...wardrobes, ...plans, ...drawings].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))));
 });
 
