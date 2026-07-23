@@ -70,6 +70,11 @@ h1, h2, h3, p { margin-top: 0; }
 .star { position: absolute; top: 10px; right: 10px; min-height: 32px; width: 32px; padding: 0; background: white; border: 1px solid var(--line); color: var(--star); font-size: 22px; }
 .editor { background: white; border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
 .title-input { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+.note-content-resizable { min-width: 0; }
+.note-content-resizable textarea { min-height: 180px; max-height: 75vh; resize: none; }
+.textarea-resize-handle { height: 18px; margin-top: 2px; border-radius: 0 0 8px 8px; cursor: row-resize; touch-action: none; position: relative; }
+.textarea-resize-handle::before { content: ""; position: absolute; left: 50%; top: 6px; width: 36px; height: 4px; transform: translateX(-50%); border-radius: 999px; background: var(--line); }
+.textarea-resize-handle:focus-visible { outline: 2px solid #8d6a9f; outline-offset: 2px; }
 .format-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .color-picker { width: 46px; height: 40px; padding: 4px; }
 .format-row input[type="number"] { width: 78px; }

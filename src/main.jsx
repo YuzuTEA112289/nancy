@@ -345,9 +345,11 @@ function Notes({ project, secret = false, onRename, onDelete }) {
 function NoteEditor({ note, onSaved, onDeleted }) {
   const [form, setForm] = useState(note);
   const [recording, setRecording] = useState(false);
+  const [contentHeight, setContentHeight] = useState(() => Math.max(240, Math.min(520, window.innerHeight * 0.45)));
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
   const formRef = useRef(note);
+  const resizeRef = useRef(null);
   const draftKey = `nancy-note-draft-${note.id}`;
   useEffect(() => {
     let saved = null;
@@ -418,6 +420,20 @@ function NoteEditor({ note, onSaved, onDeleted }) {
     setRecording(true);
   };
   const stopRecord = () => { mediaRef.current?.stop(); setRecording(false); };
+  const beginResize = (event) => {
+    event.preventDefault();
+    resizeRef.current = { startY: event.clientY, startHeight: contentHeight };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const resizeContent = (event) => {
+    if (!resizeRef.current) return;
+    const maxHeight = Math.max(240, window.innerHeight * 0.75);
+    setContentHeight(Math.max(180, Math.min(maxHeight, resizeRef.current.startHeight + event.clientY - resizeRef.current.startY)));
+  };
+  const endResize = (event) => {
+    resizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
   return <div className="editor">
     <input className="title-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
     <div className="format-row">
@@ -429,7 +445,10 @@ function NoteEditor({ note, onSaved, onDeleted }) {
       <label className="icon-upload"><Mic size={18} /><input type="file" accept="audio/*" hidden onChange={(e) => e.target.files[0] && upload(e.target.files[0], "audio")} /></label>
       <button onClick={recording ? stopRecord : startRecord}><Mic size={18} />{recording ? "停止" : "录音"}</button>
     </div>
-    <textarea style={{ color: form.textColor, background: form.backgroundColor, fontFamily: form.fontFamily, fontSize: `${form.fontSize}px` }} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+    <div className="note-content-resizable">
+      <textarea style={{ color: form.textColor, background: form.backgroundColor, fontFamily: form.fontFamily, fontSize: `${form.fontSize}px`, height: `${contentHeight}px` }} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+      <div className="textarea-resize-handle" role="separator" aria-orientation="horizontal" aria-label="调整文本框高度" tabIndex="0" onPointerDown={beginResize} onPointerMove={resizeContent} onPointerUp={endResize} onPointerCancel={endResize} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); setContentHeight((height) => Math.max(180, Math.min(Math.max(240, window.innerHeight * 0.75), height + (event.key === "ArrowUp" ? -24 : 24)))); } }} />
+    </div>
     <div className="attachments">{form.attachments?.map((a) => <div key={a.id} className="attachment">
       {a.type === "image" ? <img src={a.url} /> : <audio controls src={a.url} />}
       <button onClick={async () => { if (confirmDelete()) { await api(`/api/attachments/${a.id}`, { method: "DELETE" }); success(); onSaved(); } }}><X size={16} /></button>
